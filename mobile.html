@@ -55,7 +55,7 @@ button,input{font:inherit}
 .pd{width:10px;height:10px;border-radius:3px;flex-shrink:0}
 .help-note{font-size:11px;line-height:1.45;color:var(--text3);padding:8px 6px 10px;border-bottom:1px solid var(--bd);margin-bottom:4px}
 
-#cw{position:relative;min-width:0;overflow:auto;background:#080706;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-color:#28221b #080706}
+#cw{position:relative;min-width:0;overflow:auto;background:#080706;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-color:#28221b #080706;contain:layout size}
 #cw::-webkit-scrollbar{width:8px;height:8px}
 #cw::-webkit-scrollbar-track{background:#080706}
 #cw::-webkit-scrollbar-thumb{background:#28221b;border-radius:4px}
@@ -63,9 +63,9 @@ button,input{font:inherit}
 .zbtn{min-width:38px;height:34px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--text2);cursor:pointer;font-size:13px;-webkit-tap-highlight-color:transparent}
 .zbtn:hover{background:rgba(255,255,255,.06);border-color:var(--bd2);color:var(--text)}
 #zoom-label{font-size:12px;color:var(--gold);min-width:44px;text-align:center;font-weight:650}
-#canvas-shell{position:relative;margin:12px 12px 28px 12px;transform-origin:0 0}
+#canvas-shell{position:relative;margin:12px 12px 28px 12px;transform-origin:0 0;will-change:width,height,margin}
 #cv{
-  position:absolute;left:0;top:0;width:960px;height:720px;transform-origin:0 0;
+  position:absolute;left:0;top:0;width:960px;height:720px;transform-origin:0 0;will-change:transform;
   background-color:var(--canvas-bg);
   background-image:
     linear-gradient(rgba(255,255,255,0.055) 1px,transparent 1px),
@@ -128,10 +128,10 @@ button,input{font:inherit}
   .topbar-left{flex:1 1 100%;order:1}.topbar-right{order:2;width:100%;justify-content:space-between}.tbtn{min-height:42px;flex:1}.icon-only{flex:0 0 46px;width:46px}
   .studio-sub{margin-left:auto}
   #body{display:flex;flex-direction:column;min-height:0}
-  #cw{flex:1;min-height:0;order:1}
-  #zoombar{top:8px;margin:8px;border-radius:14px}.zbtn{min-width:42px;height:38px}#zoom-label{min-width:48px}
-  #canvas-shell{margin:10px 10px 24px 10px}
-  #sb{order:2;width:100%;height:150px;border-right:0;border-top:1px solid var(--bd);display:flex;align-items:stretch;gap:8px;overflow-x:auto;overflow-y:hidden;padding:10px max(12px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));scroll-snap-type:x proximity}
+  #cw{flex:1;min-height:0;order:1;position:relative;overflow:auto}
+  #zoombar{position:absolute;top:8px;left:8px;margin:0;border-radius:14px;opacity:.96}.zbtn{min-width:40px;height:36px}#zoom-label{min-width:46px}
+  #canvas-shell{margin:0}
+  #sb{order:2;width:100%;height:clamp(104px,18dvh,136px);border-right:0;border-top:1px solid var(--bd);display:flex;align-items:stretch;gap:8px;overflow-x:auto;overflow-y:hidden;padding:8px max(10px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));scroll-snap-type:x proximity}
   .help-note{display:none}.cat-head{display:flex;align-items:center;justify-content:center;min-width:86px;height:100%;padding:8px 10px;margin:0;border:1px solid var(--bd);border-radius:12px;background:rgba(255,255,255,.025);font-size:10px;writing-mode:vertical-rl;text-orientation:mixed;color:var(--gold)}
   .pi{min-width:142px;max-width:150px;height:100%;min-height:0;margin:0;flex-direction:column;justify-content:center;text-align:center;padding:10px;scroll-snap-align:start;font-size:12px;background:rgba(255,255,255,.035);border-color:var(--bd);gap:8px}
   .pi .tap-add{margin-left:0;font-size:18px;opacity:1}.pd{width:16px;height:16px;border-radius:5px}
@@ -143,7 +143,7 @@ button,input{font:inherit}
 
 @media (max-width:520px){
   .studio-icon{display:none}.studio-sub{font-size:11px}.topbar-right{gap:6px}.tbtn{font-size:12px;padding:8px 8px}.tbtn span.label{display:none}.icon-only{flex:0 0 42px;width:42px}
-  #sb{height:134px}.cat-head{min-width:58px}.pi{min-width:122px;max-width:130px;font-size:11px}.pi .tap-add{font-size:16px}
+  #sb{height:clamp(92px,16dvh,116px)}.cat-head{min-width:48px}.pi{min-width:112px;max-width:120px;font-size:11px;padding:8px}.pi .tap-add{font-size:16px}
   #pp{height:62dvh}.project-name{font-size:14px}
 }
 
@@ -247,33 +247,77 @@ async function readStore(key){if(storeAvailable())return await window.storage.ge
 async function writeStore(key,value){if(storeAvailable())return await window.storage.set(key,value);localStorage.setItem(key,value);}
 function clamp(n,min,max){return Math.max(min,Math.min(n,max));}
 function isTouchLayout(){return window.matchMedia('(max-width: 980px), (pointer: coarse)').matches;}
-function applyZoom(){
-  zoom=clamp(Math.round(zoom*100)/100,.45,1.4);
+let fitMode=true;
+function canvasViewport(){
+  const edge=isTouchLayout()?10:24;
+  return {
+    edge,
+    w:Math.max(1,cw.clientWidth-edge*2),
+    h:Math.max(1,cw.clientHeight-edge*2)
+  };
+}
+function updateCanvasMargins(){
+  const v=canvasViewport();
+  const sw=CW*zoom, sh=CH*zoom;
+  if(isTouchLayout()){
+    const left=Math.max(v.edge,Math.floor((cw.clientWidth-sw)/2));
+    const top=Math.max(v.edge,Math.floor((cw.clientHeight-sh)/2));
+    const right=Math.max(v.edge,Math.floor((cw.clientWidth-sw-left)));
+    const bottom=Math.max(v.edge,Math.floor((cw.clientHeight-sh-top)));
+    shell.style.margin=`${top}px ${right}px ${bottom}px ${left}px`;
+  }else{
+    shell.style.margin='12px 12px 28px 12px';
+  }
+}
+function applyZoom(center=true){
+  zoom=clamp(Math.round(zoom*1000)/1000,.1,1.6);
   cv.style.transform=`scale(${zoom})`;
   shell.style.width=(CW*zoom)+'px';
   shell.style.height=(CH*zoom)+'px';
+  updateCanvasMargins();
   document.getElementById('zoom-label').textContent=Math.round(zoom*100)+'%';
+  if(center&&isTouchLayout()){
+    requestAnimationFrame(()=>{
+      const maxX=Math.max(0,cw.scrollWidth-cw.clientWidth);
+      const maxY=Math.max(0,cw.scrollHeight-cw.clientHeight);
+      cw.scrollTo({left:maxX/2,top:maxY/2,behavior:'auto'});
+    });
+  }
 }
-function setZoom(v){zoom=v;applyZoom();}
+function setZoom(v){fitMode=false;zoom=v;applyZoom(true);}
 function fitZoom(){
-  const pad=24;
-  const zw=(cw.clientWidth-pad)/CW;
-  const zh=(cw.clientHeight-72)/CH;
-  zoom=clamp(Math.min(1,zw,zh),.45,1);
-  applyZoom();
+  fitMode=true;
+  const v=canvasViewport();
+  zoom=clamp(Math.min(v.w/CW,v.h/CH),.1,isTouchLayout()?1.15:1);
+  applyZoom(true);
 }
-function initZoom(){if(isTouchLayout())fitZoom();else setZoom(1);}
+function refitCanvas(){
+  if(isTouchLayout()||fitMode)fitZoom();
+  else applyZoom(false);
+}
+function initZoom(){fitZoom();}
 function updateDimensionLabel(){dl.textContent='24 ft × 18 ft · each square = 1 ft';}
 function localPoint(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)/zoom,y:(e.clientY-r.top)/zoom};}
 function centerPlacement(w,h){
-  const x=sg((cw.scrollLeft+cw.clientWidth/2-shell.offsetLeft)/zoom-w/2,0,CW-w);
-  const y=sg((cw.scrollTop+cw.clientHeight/2-shell.offsetTop)/zoom-h/2,0,CH-h);
+  const cr=cw.getBoundingClientRect();
+  const sr=shell.getBoundingClientRect();
+  const viewCenterX=(cr.left+cr.right)/2;
+  const viewCenterY=(cr.top+cr.bottom)/2;
+  const x=sg((viewCenterX-sr.left)/zoom-w/2,0,CW-w);
+  const y=sg((viewCenterY-sr.top)/zoom-h/2,0,CH-h);
   return {x,y};
 }
 
 if(projectInput){projectInput.addEventListener('input',autoSave);projectInput.addEventListener('keydown',e=>{if(e.key==='Enter')projectInput.blur();});}
-window.addEventListener('resize',()=>{clearTimeout(window.__fitTimer);window.__fitTimer=setTimeout(()=>{if(isTouchLayout())fitZoom();else applyZoom();},120);});
-updateDimensionLabel();applyZoom();
+function scheduleRefit(delay=80){
+  clearTimeout(window.__fitTimer);
+  window.__fitTimer=setTimeout(refitCanvas,delay);
+}
+window.addEventListener('resize',()=>scheduleRefit(80));
+if(window.visualViewport){window.visualViewport.addEventListener('resize',()=>scheduleRefit(80));}
+window.addEventListener('orientationchange',()=>scheduleRefit(260));
+if('ResizeObserver' in window){new ResizeObserver(()=>scheduleRefit(40)).observe(cw);}
+updateDimensionLabel();applyZoom(false);
 
 sb.innerHTML='<div class="help-note">Desktop: drag equipment onto the plan.<br>iPad/phone: tap an item to add it, then drag it with your finger.</div>';
 CATS.forEach(cat=>{
