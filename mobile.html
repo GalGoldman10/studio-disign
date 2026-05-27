@@ -61,6 +61,8 @@ button,input{font:inherit}
 #cw::-webkit-scrollbar-thumb{background:#28221b;border-radius:4px}
 #zoombar{position:sticky;top:10px;left:10px;z-index:12;width:max-content;display:flex;align-items:center;gap:6px;margin:10px;pointer-events:auto;background:rgba(15,14,13,.86);border:1px solid var(--bd2);box-shadow:0 8px 24px rgba(0,0,0,.28);border-radius:12px;padding:5px;backdrop-filter:blur(10px)}
 .zbtn{min-width:38px;height:34px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--text2);cursor:pointer;font-size:13px;-webkit-tap-highlight-color:transparent}
+.zbtn:disabled{opacity:.36;cursor:not-allowed}
+.edit-zbtn{min-width:54px;color:var(--gold)}
 .zbtn:hover{background:rgba(255,255,255,.06);border-color:var(--bd2);color:var(--text)}
 #zoom-label{font-size:12px;color:var(--gold);min-width:44px;text-align:center;font-weight:650}
 #canvas-shell{position:relative;margin:12px 12px 28px 12px;transform-origin:0 0;will-change:width,height,margin}
@@ -136,7 +138,7 @@ button,input{font:inherit}
   .pi{min-width:142px;max-width:150px;height:100%;min-height:0;margin:0;flex-direction:column;justify-content:center;text-align:center;padding:10px;scroll-snap-align:start;font-size:12px;background:rgba(255,255,255,.035);border-color:var(--bd);gap:8px}
   .pi .tap-add{margin-left:0;font-size:18px;opacity:1}.pd{width:16px;height:16px;border-radius:5px}
   #pp{position:fixed;left:0;right:0;bottom:0;width:100%;height:min(58dvh,430px);z-index:40;border-left:0;border-top:1px solid var(--bd2);border-radius:18px 18px 0 0;box-shadow:var(--shadow);transform:translateY(105%);transition:transform .22s ease;background:rgba(19,17,16,.98);padding-bottom:env(safe-area-inset-bottom)}
-  body.has-selection #pp{transform:translateY(0)}
+  body.props-open #pp{transform:translateY(0)}
   .sheet-close{display:block}.mobile-tip{display:block}.pp-top{padding:12px 16px}.pph{font-size:11px}#pb{padding:14px 16px 22px}
   .fi{font-size:12px}.rh{width:26px;height:26px;bottom:-12px;right:-12px;border-radius:8px}
 }
@@ -188,6 +190,7 @@ button,input{font:inherit}
         <button class="zbtn" onclick="fitZoom()" title="Fit to screen">Fit</button>
         <div id="zoom-label">100%</div>
         <button class="zbtn" onclick="setZoom(zoom+.1)" title="Zoom in">+</button>
+        <button class="zbtn edit-zbtn" id="edit-selected" onclick="openProperties()" title="Edit selected item" disabled>Edit</button>
       </div>
       <div id="canvas-shell">
         <div id="cv">
@@ -196,8 +199,8 @@ button,input{font:inherit}
       </div>
     </div>
     <div id="pp">
-      <div class="pp-top"><div class="pph">Properties</div><button class="sheet-close" onclick="selectItem(null)" aria-label="Close properties">×</button></div>
-      <div id="pb"><div class="ns">Tap an item<br>to edit it<div class="mobile-tip">On iPad/phone: tap equipment below to add it. Drag items with your finger.</div></div></div>
+      <div class="pp-top"><div class="pph">Properties</div><button class="sheet-close" onclick="closeProperties()" aria-label="Close properties">×</button></div>
+      <div id="pb"><div class="ns">Tap an item to select it<br>then press Edit<div class="mobile-tip">On iPad/phone: moving items will no longer open this panel.</div></div></div>
     </div>
   </div>
 </div>
@@ -235,7 +238,7 @@ const ITEM_COLORS=[
   {bg:'#2A1010',fg:'#D07070'},{bg:'#282018',fg:'#C0A868'}
 ];
 const cv=document.getElementById('cv'),cw=document.getElementById('cw'),shell=document.getElementById('canvas-shell');
-const sb=document.getElementById('sb'),pb=document.getElementById('pb'),dl=document.getElementById('dl'),projectInput=document.getElementById('project-name');
+const sb=document.getElementById('sb'),pb=document.getElementById('pb'),dl=document.getElementById('dl'),projectInput=document.getElementById('project-name'),editBtn=document.getElementById('edit-selected');
 
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function sg(v,mn,mx){return Math.max(mn,Math.min(Math.round(v/SN)*SN,mx));}
@@ -319,7 +322,7 @@ window.addEventListener('orientationchange',()=>scheduleRefit(260));
 if('ResizeObserver' in window){new ResizeObserver(()=>scheduleRefit(40)).observe(cw);}
 updateDimensionLabel();applyZoom(false);
 
-sb.innerHTML='<div class="help-note">Desktop: drag equipment onto the plan.<br>iPad/phone: tap an item to add it, then drag it with your finger.</div>';
+sb.innerHTML='<div class="help-note">Desktop: drag equipment onto the plan.<br>iPad/phone: tap equipment to add it. Tap an item to select it, then press Edit when needed.</div>';
 CATS.forEach(cat=>{
   const h=document.createElement('div');h.className='cat-head';h.textContent=cat.name;sb.appendChild(h);
   cat.types.forEach(t=>{
@@ -347,7 +350,7 @@ cv.addEventListener('pointerdown',e=>{if(e.target===cv||e.target===dl)selectItem
 
 function addItem(d){
   const item={id:uid++,type:d.t,name:d.n,x:d.x,y:d.y,w:d.w,h:d.h,bg:d.bg,fg:d.fg};
-  items.push(item);mkEl(item);selectItem(item.id);updateCount();autoSave();
+  items.push(item);mkEl(item);selectItem(item.id,{openSheet:!isTouchLayout()});updateCount();autoSave();
 }
 function mkEl(item){
   const el=document.createElement('div');
@@ -360,10 +363,30 @@ function mkEl(item){
 }
 function gi(id){return items.find(i=>i.id===id);}function ge(id){return document.getElementById('fi'+id);}
 function updateCount(){const el=document.getElementById('item-count');if(el)el.textContent=items.length===0?'empty':items.length+' item'+(items.length===1?'':'s');}
-function selectItem(id){
+function updateEditButton(){
+  if(editBtn)editBtn.disabled=sel===null;
+}
+function closeProperties(){
+  document.body.classList.remove('props-open');
+}
+function openProperties(id=sel){
+  if(id===null)return;
+  renderProps(id);
+  document.body.classList.add('props-open');
+}
+function selectItem(id,opts={}){
   if(sel!==null){const p=ge(sel);if(p)p.classList.remove('sel');}
-  sel=id;document.body.classList.toggle('has-selection',id!==null);
-  if(id!==null){const el=ge(id);if(el)el.classList.add('sel');renderProps(id);}else pb.innerHTML='<div class="ns">Tap an item<br>to edit it<div class="mobile-tip">On iPad/phone: tap equipment below to add it. Drag items with your finger.</div></div>';
+  sel=id;
+  document.body.classList.toggle('has-selection',id!==null);
+  if(id!==null){
+    const el=ge(id);if(el)el.classList.add('sel');
+    renderProps(id);
+    if(opts.openSheet||!isTouchLayout())openProperties(id);else closeProperties();
+  }else{
+    closeProperties();
+    pb.innerHTML='<div class="ns">Tap an item to select it<br>then press Edit<div class="mobile-tip">On iPad/phone: moving items will no longer open this panel.</div></div>';
+  }
+  updateEditButton();
 }
 function renderProps(id){
   const it=gi(id);if(!it)return;
@@ -386,13 +409,13 @@ function changeColor(id,ci){const it=gi(id);if(!it)return;const c=ITEM_COLORS[ci
 function nudge(id,dx,dy){const it=gi(id),el=ge(id);if(!it||!el)return;it.x=clamp(it.x+dx*SN,0,CW-it.w);it.y=clamp(it.y+dy*SN,0,CH-it.h);el.style.left=it.x+'px';el.style.top=it.y+'px';autoSave();}
 function delItem(id){items=items.filter(i=>i.id!==id);const el=ge(id);if(el)el.remove();selectItem(null);updateCount();autoSave();}
 function startMove(e,id){
-  selectItem(id);const it=gi(id),el=ge(id),p=localPoint(e);if(!it||!el)return;
+  selectItem(id,{openSheet:false});const it=gi(id),el=ge(id),p=localPoint(e);if(!it||!el)return;
   drag={type:'m',id,it,el,pid:e.pointerId,ox:p.x-it.x,oy:p.y-it.y};
   try{el.setPointerCapture(e.pointerId);}catch(_e){}
   e.preventDefault();
 }
 function startResize(e,id){
-  selectItem(id);const it=gi(id),el=ge(id),p=localPoint(e);if(!it||!el)return;
+  selectItem(id,{openSheet:false});const it=gi(id),el=ge(id),p=localPoint(e);if(!it||!el)return;
   drag={type:'r',id,it,el,pid:e.pointerId,sx:p.x,sy:p.y,sw:it.w,sh:it.h};
   try{el.setPointerCapture(e.pointerId);}catch(_e){}
   e.preventDefault();
@@ -412,7 +435,7 @@ document.addEventListener('pointermove',e=>{
   e.preventDefault();
 },{passive:false});
 document.addEventListener('pointerup',endPointerDrag);document.addEventListener('pointercancel',endPointerDrag);
-function endPointerDrag(e){if(!drag||e.pointerId!==drag.pid)return;if(drag.type==='r')renderProps(drag.id);autoSave();drag=null;}
+function endPointerDrag(e){if(!drag||e.pointerId!==drag.pid)return;if(drag.type==='r'&&document.body.classList.contains('props-open'))renderProps(drag.id);autoSave();drag=null;}
 function clearAll(){if(!items.length)return;items=[];document.querySelectorAll('.fi').forEach(el=>el.remove());selectItem(null);updateCount();autoSave();}
 let st=null;function autoSave(){clearTimeout(st);st=setTimeout(saveLayout,500);}
 async function saveLayout(){
@@ -421,7 +444,7 @@ async function saveLayout(){
     const b=document.getElementById('svb');if(b){const orig=b.innerHTML;b.classList.add('ok');b.innerHTML='<span aria-hidden="true">✓</span><span class="label">Saved</span>';setTimeout(()=>{b.classList.remove('ok');b.innerHTML=orig;},1200);}
   }catch(e){console.warn('Save failed',e);}
 }
-function exportPDF(){selectItem(null);saveLayout();const oldTitle=document.title;document.title=projectName()+' - Studio Layout';setTimeout(()=>window.print(),100);setTimeout(()=>{document.title=oldTitle;},1200);}
+function exportPDF(){selectItem(null);closeProperties();saveLayout();const oldTitle=document.title;document.title=projectName()+' - Studio Layout';setTimeout(()=>window.print(),100);setTimeout(()=>{document.title=oldTitle;},1200);}
 async function init(){
   initZoom();
   try{const r=await readStore(STORE_KEY);if(r&&r.value){const d=JSON.parse(r.value);items=d.items||[];uid=d.uid||1;setProjectName(d.projectName);items.forEach(i=>mkEl(i));updateCount();}}
