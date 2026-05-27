@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jewelry Studio Layout</title>
+<style>
+  html,body{height:100%;margin:0;background:#0D0C0B;color:#EDE6DC;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:grid;place-items:center;text-align:center}
+  .box{max-width:520px;padding:28px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:#131110;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  h1{font-size:22px;margin:0 0 10px;color:#E0A84A}
+  p{color:#9C9288;line-height:1.5;margin:0 0 18px}
+  a{display:inline-flex;align-items:center;justify-content:center;margin:6px;padding:11px 16px;border-radius:12px;border:1px solid rgba(200,146,58,.55);color:#E0A84A;text-decoration:none;background:rgba(200,146,58,.08)}
+</style>
+<script>
+(function(){
+  var ua = navigator.userAgent || '';
+  var isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  var isMobileUA = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua);
+  var isSmallScreen = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 980;
+  var isTouch = (navigator.maxTouchPoints || 0) > 1;
+
+  var target = (isMobileUA || isIPadOS || (isTouch && isSmallScreen)) ? 'mobile.html' : 'desktop.html';
+  window.location.replace(target);
+})();
+</script>
+</head>
+<body>
+  <div class="box">
+    <h1>Opening Jewelry Studio Layout…</h1>
+    <p>If it does not open automatically, choose your version:</p>
+    <a href="desktop.html">Open PC version</a>
+    <a href="mobile.html">Open iPad / phone version</a>
+  </div>
+</body>
+</html>
